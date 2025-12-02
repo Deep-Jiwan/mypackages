@@ -1,0 +1,85 @@
+networks:
+  edge-stack:
+    name: edge-stack
+    driver: bridge
+
+volumes:
+  vm-data:
+  agent-data:
+
+services:
+  sensor-service:
+    container_name: sensor-service-10x
+    image: ghcr.io/deep-jiwan/10x-sensor-node:autobuild
+    ports:
+      - "8300:8000"
+    restart: always
+    networks:
+      - edge-stack
+    environment:
+      - PYTHONUNBUFFERED=1
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          memory: 80M
+          cpus: "0.25"
+
+  vmagent:
+    container_name: vmagent-10x
+    image: victoriametrics/vmagent:latest
+    restart: unless-stopped
+    command:
+      - "--promscrape.config=/etc/vmagent/scrape.yml"
+      - "--remoteWrite.url=http://victoria-metrics:8428/api/v1/write"
+      - "--httpListenAddr=:8429"
+    volumes:
+      - agent-data:/etc/vmagent
+      - ./scrape.yml:/etc/vmagent/scrape.yml:ro
+    ports:
+      - "8429:8429"
+    networks:
+      - edge-stack
+    depends_on:
+      - victoria-metrics
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8429/metrics"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          memory: 40M
+          cpus: "0.15"
+
+  victoria-metrics:
+    container_name: victoria-metrics-10x
+    image: victoriametrics/victoria-metrics:latest
+    restart: unless-stopped
+    command:
+      - "--storageDataPath=/var/lib/victoria-metrics-data"
+      - "--httpListenAddr=:8428"
+    volumes:
+      - vm-data:/var/lib/victoria-metrics-data
+    ports:
+      - "8428:8428"
+    networks:
+      - edge-stack
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8428/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    deploy:
+      resources:
+        limits:
+          memory: 140M
+          cpus: "0.35"
