@@ -4,14 +4,26 @@
 GHCR_USERNAME="${GHCR_USERNAME:-$ghcr_username}"
 GHCR_TOKEN="${GHCR_TOKEN:-$ghcr_token}"
 
-echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USERNAME" --password-stdin
+# Only login if credentials are provided
+if [ -n "$GHCR_USERNAME" ] && [ -n "$GHCR_TOKEN" ]; then
+    echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USERNAME" --password-stdin
+else
+    echo "Skipping docker login - credentials not provided"
+fi
 
 echo "Downloading latest stack file..."
 curl -L -o docker-compose-sensor.yml https://raw.githubusercontent.com/Deep-Jiwan/mypackages/main/docker-compose-sensor.yml
 
 echo "Downloading scrape configuration..."
-rm -rf scrape.yml  # Remove if it exists as directory
+rm -rf scrape.yml  # Remove if it exists as directory or file
 curl -L -o scrape.yml https://raw.githubusercontent.com/Deep-Jiwan/mypackages/main/scrape.yml
+
+# Verify scrape.yml is a file, not a directory
+if [ -d "scrape.yml" ]; then
+    echo "Error: scrape.yml is a directory, removing and re-downloading..."
+    rm -rf scrape.yml
+    curl -L -o scrape.yml https://raw.githubusercontent.com/Deep-Jiwan/mypackages/main/scrape.yml
+fi
 
 echo "Pulling latest images..."
 docker compose -f docker-compose-sensor.yml pull
