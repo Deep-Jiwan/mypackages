@@ -11,19 +11,35 @@ else
     echo "Skipping docker login - credentials not provided"
 fi
 
+# Create or enter deployment directory
+mkdir -p sensor-deploy
+cd sensor-deploy
+
 echo "Downloading latest stack file..."
 curl -L -o docker-compose-sensor.yml https://raw.githubusercontent.com/Deep-Jiwan/mypackages/main/docker-compose-sensor.yml
 
 echo "Downloading scrape configuration..."
-rm -rf scrape.yml  # Remove if it exists as directory or file
+# Force remove scrape.yml whether it's a file or directory
+rm -rf scrape.yml
+# Download the file
 curl -L -o scrape.yml https://raw.githubusercontent.com/Deep-Jiwan/mypackages/main/scrape.yml
 
-# Verify scrape.yml is a file, not a directory
-if [ -d "scrape.yml" ]; then
-    echo "Error: scrape.yml is a directory, removing and re-downloading..."
-    rm -rf scrape.yml
-    curl -L -o scrape.yml https://raw.githubusercontent.com/Deep-Jiwan/mypackages/main/scrape.yml
+# Double-check it's actually a file
+if [ ! -f "scrape.yml" ]; then
+    echo "ERROR: scrape.yml was not created as a file!"
+    ls -la scrape.yml || echo "scrape.yml does not exist"
+    exit 1
 fi
+
+echo "scrape.yml verified as file:"
+ls -lh scrape.yml
+
+echo "Ensuring edge-stack network exists..."
+docker network create edge-stack 2>/dev/null || echo "Network edge-stack already exists"
+
+echo "Cleaning up any existing scrape.yml bind mounts..."
+# Stop vmagent if it's running with a bad mount
+docker rm -f vmagent-10x 2>/dev/null || true
 
 echo "Pulling latest images..."
 docker compose -f docker-compose-sensor.yml pull
