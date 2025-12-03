@@ -1,0 +1,7 @@
+scrape_configs:
+  - job_name: "sensor-service"
+    metrics_path: "/metrics"
+    scrape_interval: 10s
+    scrape_timeout: 5s
+    static_configs:
+      - targets: ["sensor-service-10x:8000"]
